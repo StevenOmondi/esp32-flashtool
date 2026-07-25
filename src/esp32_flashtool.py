@@ -9,7 +9,7 @@ import sys
 import tempfile
 import threading
 from queue import Queue
-from tkinter import BooleanVar, Menu, StringVar, Tk, Toplevel, filedialog, messagebox, ttk
+from tkinter import BooleanVar, Menu, StringVar, Text, Tk, Toplevel, filedialog, messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 from urllib.request import urlopen
 
@@ -38,26 +38,31 @@ DEFAULT_ADDR = "0x1000"
 
 THEMES = {
     "dark": {
-        "bg": "#1e1e1e",
-        "fg": "#eeeeee",
-        "field": "#3c3c3c",
-        "accent": "#007acc",
-        "text_bg": "#252526",
-        "text_fg": "#d4d4d4",
-        "select": "#094771",
-        "tree": "#1e1e1e",
+        "bg": "#111827",
+        "fg": "#e5e7eb",
+        "field": "#1f2937",
+        "accent": "#3b82f6",
+        "text_bg": "#0f172a",
+        "text_fg": "#e2e8f0",
+        "select": "#2563eb",
+        "tree": "#1f2937",
     },
     "light": {
-        "bg": "#f0f0f0",
-        "fg": "#000000",
+        "bg": "#f8fafc",
+        "fg": "#0f172a",
         "field": "#ffffff",
-        "accent": "#0078d7",
+        "accent": "#2563eb",
         "text_bg": "#ffffff",
-        "text_fg": "#000000",
-        "select": "#0078d7",
+        "text_fg": "#0f172a",
+        "select": "#3b82f6",
         "tree": "#ffffff",
     },
 }
+
+FONT_FAMILY = ("Helvetica", "Arial", "DejaVu Sans")
+NORMAL_FONT = (FONT_FAMILY, 10)
+SMALL_FONT = (FONT_FAMILY, 9)
+HEADER_FONT = (FONT_FAMILY, 18, "bold")
 
 
 def get_esptool_base():
@@ -112,13 +117,24 @@ class ESP32FlasherApp:
 
         self.master.config(menu=menubar)
         self.menubar = menubar
+        self.file_menu = file_menu
+        self.settings_menu = settings_menu
+        self.help_menu = help_menu
 
     def _build_widgets(self):
-        # Settings frame
-        settings = ttk.LabelFrame(self.master, text="Settings", padding=(10, 5))
-        settings.pack(fill="x", padx=10, pady=5)
+        # Header
+        header = ttk.Frame(self.master, padding=(12, 10))
+        header.pack(fill="x", padx=10, pady=(8, 0))
+        ttk.Label(header, text="ESP32 Flash Tool", style="Header.TLabel").pack(side="left")
+        ttk.Separator(self.master, orient="horizontal", style="HSeparator.TSeparator").pack(
+            fill="x", padx=10, pady=8
+        )
 
-        ttk.Label(settings, text="Port:").grid(row=0, column=0, sticky="w")
+        # Settings frame
+        settings = ttk.LabelFrame(self.master, text="Settings", padding=(12, 8))
+        settings.pack(fill="x", padx=12, pady=6)
+
+        ttk.Label(settings, text="Port:").grid(row=0, column=0, sticky="w", padx=(0, 4))
         self.port_var = StringVar()
         self.port_combo = ttk.Combobox(
             settings, textvariable=self.port_var, values=[], width=22, state="readonly"
@@ -128,48 +144,49 @@ class ESP32FlasherApp:
             row=0, column=2, sticky="w"
         )
 
-        ttk.Label(settings, text="Baud:").grid(row=1, column=0, sticky="w", pady=5)
+        ttk.Label(settings, text="Baud:").grid(row=1, column=0, sticky="w", pady=8, padx=(0, 4))
         self.baud_var = StringVar(value=ESP32_BAUDS[0])
         ttk.Combobox(settings, textvariable=self.baud_var, values=ESP32_BAUDS, width=10).grid(
             row=1, column=1, sticky="w", padx=5
         )
 
-        ttk.Label(settings, text="Chip:").grid(row=2, column=0, sticky="w")
+        ttk.Label(settings, text="Chip:").grid(row=2, column=0, sticky="w", padx=(0, 4))
         self.chip_var = StringVar(value=ESP32_CHIPS[0])
         ttk.Combobox(settings, textvariable=self.chip_var, values=ESP32_CHIPS, width=12).grid(
             row=2, column=1, sticky="w", padx=5
         )
 
         ttk.Separator(settings, orient="vertical").grid(
-            row=0, column=3, rowspan=3, sticky="ns", padx=10
+            row=0, column=3, rowspan=3, sticky="ns", padx=14
         )
 
-        ttk.Label(settings, text="OTA URL:").grid(row=0, column=4, sticky="w")
+        ttk.Label(settings, text="OTA URL:").grid(row=0, column=4, sticky="w", padx=(0, 4))
         self.url_var = StringVar()
-        url_entry = ttk.Entry(settings, textvariable=self.url_var, width=40)
+        url_entry = ttk.Entry(settings, textvariable=self.url_var)
         url_entry.grid(row=0, column=5, sticky="we", padx=5)
         ttk.Button(settings, text="Fetch & Add", command=self.fetch_and_add).grid(
             row=0, column=6, sticky="w"
         )
 
+        settings.columnconfigure(1, weight=0)
         settings.columnconfigure(5, weight=1)
 
         # Primary binary frame
-        primary = ttk.LabelFrame(self.master, text="Add Binary", padding=(10, 5))
-        primary.pack(fill="x", padx=10, pady=5)
+        primary = ttk.LabelFrame(self.master, text="Add Binary", padding=(12, 8))
+        primary.pack(fill="x", padx=12, pady=6)
 
-        ttk.Label(primary, text="Address:").grid(row=0, column=0, sticky="w")
+        ttk.Label(primary, text="Address:").grid(row=0, column=0, sticky="w", padx=(0, 4))
         self.addr_var = StringVar(value=DEFAULT_ADDR)
         ttk.Entry(primary, textvariable=self.addr_var, width=12).grid(
             row=0, column=1, sticky="w", padx=5
         )
 
-        ttk.Label(primary, text="Firmware:").grid(row=1, column=0, sticky="w", pady=5)
+        ttk.Label(primary, text="Firmware:").grid(row=1, column=0, sticky="w", pady=8, padx=(0, 4))
         self.file_var = StringVar()
-        self.file_entry = ttk.Entry(primary, textvariable=self.file_var, width=50)
+        self.file_entry = ttk.Entry(primary, textvariable=self.file_var)
         self.file_entry.grid(row=1, column=1, sticky="we", padx=5)
         ttk.Button(primary, text="Browse...", command=self.browse_firmware).grid(
-            row=1, column=2, sticky="w", padx=(0, 5)
+            row=1, column=2, sticky="w", padx=(0, 6)
         )
         ttk.Button(primary, text="Add", command=self.add_binary).grid(
             row=1, column=3, sticky="w"
@@ -178,20 +195,21 @@ class ESP32FlasherApp:
         primary.columnconfigure(1, weight=1)
 
         # Binary list
-        list_frame = ttk.LabelFrame(self.master, text="Binaries to Flash", padding=(5, 5))
-        list_frame.pack(fill="both", expand=False, padx=10, pady=5)
+        list_frame = ttk.LabelFrame(self.master, text="Binaries to Flash", padding=(10, 8))
+        list_frame.pack(fill="both", expand=True, padx=12, pady=6)
         list_frame.columnconfigure(0, weight=1)
+        list_frame.rowconfigure(0, weight=1)
 
         cols = ("address", "file", "size")
         self.bin_tree = ttk.Treeview(
-            list_frame, columns=cols, show="headings", selectmode="browse", height=5
+            list_frame, columns=cols, show="headings", selectmode="browse"
         )
         self.bin_tree.heading("address", text="Address")
         self.bin_tree.heading("file", text="File")
         self.bin_tree.heading("size", text="Size")
-        self.bin_tree.column("address", width=90, anchor="w")
-        self.bin_tree.column("file", width=400, anchor="w")
-        self.bin_tree.column("size", width=80, anchor="e")
+        self.bin_tree.column("address", width=100, anchor="w")
+        self.bin_tree.column("file", width=420, anchor="w")
+        self.bin_tree.column("size", width=90, anchor="e")
         self.bin_tree.grid(row=0, column=0, sticky="nsew")
 
         vsb = ttk.Scrollbar(list_frame, orient="vertical", command=self.bin_tree.yview)
@@ -199,13 +217,13 @@ class ESP32FlasherApp:
         self.bin_tree.configure(yscrollcommand=vsb.set)
 
         btn_frame = ttk.Frame(list_frame)
-        btn_frame.grid(row=1, column=0, columnspan=2, sticky="w", pady=5)
-        ttk.Button(btn_frame, text="Remove selected", command=self.remove_binary).pack(side="left", padx=2)
-        ttk.Button(btn_frame, text="Clear all", command=self.clear_binaries).pack(side="left", padx=2)
+        btn_frame.grid(row=1, column=0, columnspan=2, sticky="w", pady=(8, 0))
+        ttk.Button(btn_frame, text="Remove selected", command=self.remove_binary).pack(side="left", padx=(0, 4))
+        ttk.Button(btn_frame, text="Clear all", command=self.clear_binaries).pack(side="left")
 
         # Action buttons
-        actions = ttk.Frame(self.master)
-        actions.pack(fill="x", padx=10, pady=5)
+        actions = ttk.Frame(self.master, padding=(0, 4))
+        actions.pack(fill="x", padx=12, pady=(6, 0))
         for text, command in [
             ("Connect / Info", self.get_info),
             ("Flash All", self.flash_all),
@@ -214,26 +232,27 @@ class ESP32FlasherApp:
             ("Stop", self.stop),
         ]:
             ttk.Button(actions, text=text, command=command).pack(
-                side="left", padx=5, expand=True, fill="x"
+                side="left", padx=(0, 8), expand=True, fill="x"
             )
 
         # Progress
         self.progress = ttk.Progressbar(
             self.master, mode="determinate", maximum=100, value=0
         )
-        self.progress.pack(fill="x", padx=10, pady=5)
+        self.progress.pack(fill="x", padx=12, pady=(10, 6))
 
         # Log
-        log_frame = ttk.LabelFrame(self.master, text="Output", padding=(5, 5))
-        log_frame.pack(fill="both", expand=True, padx=10, pady=5)
-        self.log_text = ScrolledText(log_frame, wrap="word", height=12, state="disabled")
+        log_frame = ttk.LabelFrame(self.master, text="Output", padding=(8, 6))
+        log_frame.pack(fill="both", expand=True, padx=12, pady=6)
+        self.log_text = ScrolledText(log_frame, wrap="word", height=10, state="disabled")
         self.log_text.pack(fill="both", expand=True)
 
         # Status bar
         self.status_var = StringVar(value="Ready")
-        ttk.Label(self.master, textvariable=self.status_var, relief="sunken").pack(
-            fill="x", padx=10, pady=2
+        self.status_label = ttk.Label(
+            self.master, textvariable=self.status_var, relief="flat", anchor="w", padding=(6, 2)
         )
+        self.status_label.pack(fill="x", padx=12, pady=(0, 6))
 
         # Drag-and-drop
         if HAVE_DND:
@@ -252,13 +271,41 @@ class ESP32FlasherApp:
 
         style = ttk.Style(self.master)
         style.theme_use("clam")
-        style.configure(".", background=t["bg"], foreground=t["fg"], fieldbackground=t["field"])
+        style.configure(
+            ".",
+            background=t["bg"],
+            foreground=t["fg"],
+            fieldbackground=t["field"],
+            font=NORMAL_FONT,
+        )
         style.configure("TFrame", background=t["bg"])
         style.configure("TLabel", background=t["bg"], foreground=t["fg"])
         style.configure(
-            "TButton", background=t["field"], foreground=t["fg"], bordercolor=t["accent"]
+            "Header.TLabel",
+            background=t["bg"],
+            foreground=t["accent"],
+            font=HEADER_FONT,
         )
-        style.configure("TEntry", fieldbackground=t["field"], foreground=t["fg"], insertcolor=t["fg"])
+        style.configure(
+            "TButton",
+            background=t["field"],
+            foreground=t["fg"],
+            bordercolor=t["accent"],
+            font=NORMAL_FONT,
+            padding=4,
+        )
+        style.map(
+            "TButton",
+            background=[("active", t["accent"]), ("pressed", t["accent"])],
+            foreground=[("active", "#ffffff"), ("pressed", "#ffffff")],
+        )
+        style.configure(
+            "TEntry",
+            fieldbackground=t["field"],
+            foreground=t["fg"],
+            insertcolor=t["fg"],
+            padding=3,
+        )
         style.configure(
             "TCombobox",
             fieldbackground=t["field"],
@@ -266,6 +313,7 @@ class ESP32FlasherApp:
             foreground=t["fg"],
             selectbackground=t["select"],
             arrowcolor=t["fg"],
+            padding=2,
         )
         style.map("TCombobox", fieldbackground=[("readonly", t["field"])])
         style.configure("TCheckbutton", background=t["bg"], foreground=t["fg"])
@@ -275,6 +323,7 @@ class ESP32FlasherApp:
             background=t["accent"],
             darkcolor=t["accent"],
             lightcolor=t["accent"],
+            thickness=14,
         )
         style.configure("TLabelFrame", background=t["bg"], foreground=t["fg"])
         style.configure("TLabelFrame.Label", background=t["bg"], foreground=t["fg"])
@@ -284,24 +333,53 @@ class ESP32FlasherApp:
             foreground=t["fg"],
             fieldbackground=t["tree"],
             selectbackground=t["select"],
+            font=NORMAL_FONT,
+            rowheight=24,
         )
-        style.configure("Treeview.Heading", background=t["field"], foreground=t["fg"])
+        style.configure(
+            "Treeview.Heading",
+            background=t["field"],
+            foreground=t["fg"],
+            font=(FONT_FAMILY, 9, "bold"),
+        )
+        style.configure(
+            "HSeparator.TSeparator",
+            background=t["accent"],
+        )
 
         self.master.configure(background=t["bg"])
-        if hasattr(self, "menubar"):
-            self.menubar.configure(background=t["bg"], foreground=t["fg"])
+        menu_config = {
+            "background": t["bg"],
+            "foreground": t["fg"],
+            "activebackground": t["select"],
+            "activeforeground": "#ffffff",
+        }
+        for attr in ("menubar", "file_menu", "settings_menu", "help_menu"):
+            if hasattr(self, attr):
+                getattr(self, attr).configure(**menu_config)
 
-        for widget in (self.log_text,):
-            widget.configure(
-                bg=t["text_bg"],
-                fg=t["text_fg"],
-                insertbackground=t["fg"],
-                selectbackground=t["select"],
-            )
+        self.log_text.configure(
+            bg=t["text_bg"],
+            fg=t["text_fg"],
+            insertbackground=t["fg"],
+            selectbackground=t["select"],
+            font=NORMAL_FONT,
+            borderwidth=0,
+            padx=6,
+            pady=6,
+        )
 
         for dialog in self.master.winfo_children():
             if isinstance(dialog, Toplevel):
                 dialog.configure(background=t["bg"])
+                for child in dialog.winfo_children():
+                    if isinstance(child, (Text, ScrolledText)):
+                        child.configure(
+                            bg=t["text_bg"],
+                            fg=t["text_fg"],
+                            insertbackground=t["fg"],
+                            selectbackground=t["select"],
+                        )
 
     # ------------------------------------------------------------------ #
     # Queue / log helpers
