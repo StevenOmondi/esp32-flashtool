@@ -1,3 +1,4 @@
 esptool>=4.7,<5.0
 pyserial>=3.5
 tkinterdnd2>=0.6
+pyusb>=1.2
